@@ -1,0 +1,912 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<link rel="icon" href="data:," />
+<title>Deez's Super Mega Syrup Tracker</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0a0602; --bg2:#140c04; --panel:#1a1106; --panel2:#221708;
+    --gold:#f2b33d; --gold2:#d98e12; --amber:#ffb84d; --syrup:#b96a00;
+    --text:#f7d98a; --text-dim:#c9a45c; --muted:#9a7c3f;
+    --line:#3a2708; --line2:#553a10;
+    --good:#7fc95e; --warn:#ffc44d; --bad:#e2603f; --info:#6fc3df;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:"Outfit",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{font-family:"DM Serif Display",serif;font-weight:400;color:var(--gold);margin:0}
+  button{font-family:inherit;cursor:pointer}
+  input,select,textarea{font-family:inherit}
+  ::selection{background:var(--syrup);color:#fff}
+
+  /* syrup drip header band */
+  .drips{position:relative;height:34px;overflow:visible;pointer-events:none;margin-bottom:-6px}
+  .drips svg{display:block;width:100%;height:52px}
+
+  header.top{padding:10px 18px 4px;max-width:1240px;margin:0 auto}
+  .title-row{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 18px;justify-content:space-between}
+  h1{font-size:clamp(26px,4.5vw,42px);letter-spacing:.4px;line-height:1.05;
+     background:linear-gradient(180deg,#ffd873,#e79b1e);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .subtitle{color:var(--text-dim);font-size:14px;max-width:560px;line-height:1.45}
+  .gps-pill{display:flex;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--line2);
+    border-radius:999px;padding:7px 14px;font-size:13px;color:var(--text-dim);white-space:nowrap}
+  .gps-dot{width:9px;height:9px;border-radius:50%;background:#666;flex:none}
+  .gps-dot.live{background:var(--good);box-shadow:0 0 8px var(--good)}
+  .gps-dot.err{background:var(--bad)}
+
+  main{max-width:1240px;margin:0 auto;padding:12px 18px 60px;display:flex;flex-direction:column;gap:18px}
+
+  /* weather + sap flow */
+  .wx-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:14px}
+  @media(max-width:820px){.wx-grid{grid-template-columns:1fr}}
+  .card{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+  .card h2{font-size:19px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+  .wx-now{display:flex;flex-wrap:wrap;gap:8px 26px;align-items:baseline}
+  .wx-temp{font-size:44px;font-weight:800;color:var(--amber);line-height:1}
+  .wx-cond{font-size:16px;color:var(--text)}
+  .wx-stats{display:flex;flex-wrap:wrap;gap:6px 20px;margin-top:10px;font-size:13.5px;color:var(--text-dim)}
+  .wx-stats b{color:var(--text);font-weight:600}
+  .pressure-note{font-size:12.5px;color:var(--muted);margin-top:6px}
+  .forecast{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
+  @media(max-width:520px){.forecast{grid-template-columns:repeat(2,1fr)}}
+  .fc-day{background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:10px;padding:9px 10px;font-size:12.5px}
+  .fc-day .d{font-weight:700;color:var(--gold);font-size:13px}
+  .fc-day .t{font-size:16px;font-weight:700;color:var(--text);margin:2px 0}
+  .fc-day .c{color:var(--text-dim)}
+  .wx-status{font-size:13px;color:var(--muted)}
+  .wx-status.err{color:var(--bad)}
+
+  .flow-rating{font-size:30px;font-weight:800;letter-spacing:.5px;line-height:1}
+  .flow-rating.great{color:var(--good)} .flow-rating.good{color:#a8d95e}
+  .flow-rating.average{color:var(--warn)} .flow-rating.bad{color:var(--bad)}
+  .flow-wrap{display:flex;gap:16px;align-items:center}
+  .bucket-box{flex:none;text-align:center}
+  .bucket-cap{font-size:11.5px;color:var(--text-dim);margin-top:4px;line-height:1.3}
+  .flow-facts{font-size:13.5px;color:var(--text-dim);line-height:1.55}
+  .flow-facts b{color:var(--text)}
+  .flow-why{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5;border-top:1px dashed var(--line2);padding-top:8px}
+
+  /* map */
+  .map-card{padding:0;overflow:hidden}
+  .map-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 14px;background:var(--panel);border-bottom:1px solid var(--line)}
+  .seg{display:flex;background:#000;border:1px solid var(--line2);border-radius:10px;overflow:hidden;flex-wrap:wrap}
+  .seg button{background:transparent;border:0;color:var(--text-dim);padding:8px 13px;font-size:13.5px;font-weight:600}
+  .seg button.on{background:linear-gradient(180deg,var(--gold),var(--gold2));color:#241300}
+  .tgl{display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--text-dim);background:#000;border:1px solid var(--line2);border-radius:10px;padding:7px 12px}
+  .tgl .sw{width:34px;height:19px;border-radius:999px;background:#3a2708;position:relative;flex:none;transition:.15s}
+  .tgl .sw::after{content:"";position:absolute;top:2.5px;left:3px;width:14px;height:14px;border-radius:50%;background:#c9a45c;transition:.15s}
+  .tgl.on .sw{background:var(--syrup)} .tgl.on .sw::after{left:17px;background:#ffe1a1}
+  .btn{background:linear-gradient(180deg,#2b1c07,#1d1204);border:1px solid var(--line2);color:var(--text);
+    border-radius:10px;padding:8px 14px;font-size:13.5px;font-weight:600}
+  .btn:hover{border-color:var(--gold2)}
+  .btn.gold{background:linear-gradient(180deg,var(--gold),var(--gold2));color:#241300;border-color:#8a5c06}
+  .btn.danger{border-color:#6e2a18;color:#f0937a}
+  .btn.rec{background:linear-gradient(180deg,#a32c12,#7c1d0a);color:#ffd9cf;border-color:#5c1405}
+  .map-status{font-size:12.5px;color:var(--muted);margin-left:auto}
+  .map-status.err{color:var(--bad)}
+  #map{height:480px;width:100%;background:#111;z-index:0}
+  @media(max-width:640px){#map{height:400px}}
+  .leaflet-container{font-family:inherit}
+  .wp-icon{background:transparent;border:0}
+  .wp-pin{width:34px;height:34px;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;
+    border:2px solid rgba(0,0,0,.55);box-shadow:0 2px 8px rgba(0,0,0,.6)}
+  .wp-pin svg{transform:rotate(45deg);width:18px;height:18px}
+  .wp-pin.sel{outline:3px solid #fff;outline-offset:1px}
+  .me-dot{width:18px;height:18px;border-radius:50%;background:#4db2ff;border:3px solid #fff;box-shadow:0 0 0 6px rgba(77,178,255,.3)}
+  .leaflet-popup-content-wrapper{background:#1d1204;color:var(--text);border:1px solid var(--line2);border-radius:10px}
+  .leaflet-popup-tip{background:#1d1204}
+  .leaflet-popup-content{font-size:13.5px;line-height:1.5}
+  .leaflet-popup-content b{color:var(--gold)}
+  .pop-edit{margin-top:8px;background:var(--gold);border:0;color:#241300;font-weight:700;border-radius:7px;padding:5px 12px;font-size:12.5px}
+
+  /* action bar */
+  .actions{display:flex;flex-direction:column;gap:12px}
+  .quick-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .quick-label{font-size:12px;font-weight:700;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-right:2px}
+  .chip{display:flex;align-items:center;gap:7px;background:#000;border:1px solid var(--line2);color:var(--text);
+    border-radius:999px;padding:7px 13px 7px 9px;font-size:13.5px;font-weight:600}
+  .chip:hover{border-color:var(--gold)}
+  .chip .dot{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none}
+  .chip .dot svg{width:13px;height:13px}
+  .mark-big{font-size:17px;padding:13px 22px;border-radius:12px}
+  .track-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .color-pick{display:flex;gap:6px;align-items:center}
+  .color-pick .lab{font-size:13px;color:var(--text-dim)}
+  .swatch{width:24px;height:24px;border-radius:50%;border:2px solid transparent;padding:0}
+  .swatch.on{border-color:#fff;box-shadow:0 0 0 2px #000,0 0 0 4px var(--gold)}
+  .mode-banner{display:none;background:#3d2403;border:1px solid var(--gold2);border-radius:10px;padding:10px 14px;font-size:14px;color:var(--amber)}
+  .mode-banner.show{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+
+  /* forms + lists */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+  @media(max-width:920px){.cols{grid-template-columns:1fr}}
+  form .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:520px){form .grid{grid-template-columns:1fr}}
+  label.f{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600;color:var(--text-dim)}
+  label.f.full{grid-column:1/-1}
+  input,select,textarea{background:#000;border:1px solid var(--line2);border-radius:9px;color:var(--text);
+    padding:9px 11px;font-size:14.5px;width:100%}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--syrup);border-color:var(--gold2)}
+  textarea{resize:vertical;min-height:56px}
+  .form-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+  .hidden{display:none !important}
+
+  .filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+  .filters select,.filters input{width:auto;flex:1;min-width:110px}
+  .wp-list{display:flex;flex-direction:column;gap:8px;max-height:560px;overflow:auto;padding-right:2px}
+  .wp-item{background:rgba(0,0,0,.4);border:1px solid var(--line);border-radius:11px;padding:10px 12px;display:flex;gap:11px;align-items:flex-start}
+  .wp-item.sel{border-color:var(--gold)}
+  .wp-badge{width:36px;height:36px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center}
+  .wp-badge svg{width:20px;height:20px}
+  .wp-main{flex:1;min-width:0}
+  .wp-name{font-weight:700;font-size:15px;color:var(--text)}
+  .wp-meta{font-size:12.5px;color:var(--text-dim);line-height:1.5}
+  .health{font-weight:700}
+  .health.healthy{color:var(--good)} .health.watch{color:var(--warn)} .health.poor{color:#f08a4b} .health.dead{color:var(--bad)}
+  .wp-btns{display:flex;flex-direction:column;gap:5px}
+  .mini{background:#000;border:1px solid var(--line2);color:var(--text-dim);border-radius:7px;padding:4px 9px;font-size:12px;font-weight:600}
+  .mini:hover{color:var(--text);border-color:var(--gold2)}
+  .empty{color:var(--muted);font-size:14px;padding:14px;border:1px dashed var(--line2);border-radius:11px;text-align:center;line-height:1.55}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{ text-align:left;color:var(--muted);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--line2)}
+  td{padding:7px 8px;border-bottom:1px solid var(--line);color:var(--text);white-space:nowrap}
+  td.num,th.num{text-align:right}
+  .tbl-wrap{overflow-x:auto}
+  @media(max-width:640px){ .tbl-wrap{overflow:visible} table,thead,tbody,tr,td,th{display:block} thead{display:none}
+    tr{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;padding:6px 4px;background:rgba(0,0,0,.35)}
+    td{border:0;display:flex;justify-content:space-between;gap:12px;white-space:normal}
+    td::before{content:attr(data-l);color:var(--muted);font-size:12px;font-weight:600}
+    td.num{text-align:right} }
+  .totals{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:9px;margin-top:14px}
+  .tot{background:rgba(0,0,0,.4);border:1px solid var(--line);border-radius:11px;padding:10px 12px}
+  .tot .v{font-size:21px;font-weight:800;color:var(--amber)}
+  .tot .k{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-top:2px}
+  .run-item,.track-item{display:flex;gap:10px;align-items:center;background:rgba(0,0,0,.4);border:1px solid var(--line);border-radius:11px;padding:9px 12px;margin-bottom:8px;font-size:13.5px}
+  .run-line{width:30px;height:0;border-top:4px dashed;flex:none;border-radius:2px}
+  .track-line{width:30px;height:5px;flex:none;border-radius:3px}
+  footer{max-width:1240px;margin:0 auto;padding:0 18px 34px;color:var(--muted);font-size:12.5px;line-height:1.6}
+  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(80px);background:#2b1c07;border:1px solid var(--gold2);
+    color:var(--text);padding:11px 18px;border-radius:11px;font-size:14px;font-weight:600;z-index:9999;transition:.25s;max-width:92vw;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.7)}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<div class="drips" aria-hidden="true">
+  <svg viewBox="0 0 1200 52" preserveAspectRatio="none">
+    <path d="M0,0 L1200,0 L1200,10 C1150,10 1152,26 1130,26 C1108,26 1112,12 1080,12 C1040,12 1046,40 1022,40 C998,40 1004,12 960,12 C920,12 928,22 900,22 C872,22 878,10 830,10 C790,10 796,32 772,32 C748,32 754,12 705,12 C665,12 670,18 645,18 C620,18 626,10 575,10 C535,10 542,44 516,44 C490,44 496,12 450,12 C410,12 416,24 390,24 C364,24 370,10 320,10 C282,10 288,36 262,36 C236,36 242,12 195,12 C155,12 162,20 138,20 C114,20 118,10 70,10 C35,10 38,28 18,28 C4,28 6,12 0,12 Z" fill="#8a5200"/>
+    <path d="M0,0 L1200,0 L1200,6 C1150,6 1152,20 1130,20 C1108,20 1112,7 1080,7 C1040,7 1046,32 1022,32 C998,32 1004,7 960,7 C920,7 928,16 900,16 C872,16 878,6 830,6 C790,6 796,25 772,25 C748,25 754,7 705,7 C665,7 670,13 645,13 C620,13 626,6 575,6 C535,6 542,36 516,36 C490,36 496,7 450,7 C410,7 416,18 390,18 C364,18 370,6 320,6 C282,6 288,28 262,28 C236,28 242,7 195,7 C155,7 162,14 138,14 C114,14 118,6 70,6 C35,6 38,21 18,21 C4,21 6,7 0,7 Z" fill="#c07f10" opacity=".85"/>
+  </svg>
+</div>
+
+<header class="top">
+  <div class="title-row">
+    <div>
+      <h1>Deez's Super Mega Syrup Tracker</h1>
+      <p class="subtitle">Sugar bush command center for the 250-tree operation in Hamlin, NY — GPS tracks, tubing line runs, equipment waypoints, production and sap flow, all in one place.</p>
+    </div>
+    <div class="gps-pill"><span class="gps-dot" id="gpsDot"></span><span id="gpsText">GPS: waiting for a fix…</span></div>
+  </div>
+</header>
+
+<main>
+  <!-- WEATHER + SAP FLOW -->
+  <section class="wx-grid">
+    <div class="card">
+      <h2>Local Weather — <span id="wxPlace">Hamlin, NY</span></h2>
+      <div id="wxBody"><p class="wx-status" id="wxStatus">Loading weather…</p></div>
+      <div class="forecast" id="wxForecast"></div>
+    </div>
+    <div class="card">
+      <h2>Sap Flow Conditions</h2>
+      <div class="flow-wrap">
+        <div class="bucket-box">
+          <svg width="72" height="84" viewBox="0 0 72 84" role="img" aria-label="Sap collection bucket">
+            <defs><clipPath id="bclip"><path d="M10 22 L62 22 L57 78 Q56.5 82 52 82 L20 82 Q15.5 82 15 78 Z"/></clipPath></defs>
+            <path d="M8 14 Q36 -4 64 14" fill="none" stroke="#c9a45c" stroke-width="3.5"/>
+            <rect id="bucketFill" x="8" y="82" width="56" height="0" fill="#e79b1e" clip-path="url(#bclip)"/>
+            <path d="M10 22 L62 22 L57 78 Q56.5 82 52 82 L20 82 Q15.5 82 15 78 Z" fill="none" stroke="#f2b33d" stroke-width="3"/>
+            <line x1="6" y1="22" x2="66" y2="22" stroke="#f2b33d" stroke-width="4" stroke-linecap="round"/>
+          </svg>
+          <div class="bucket-cap" id="bucketCap">— gal expected<br/>today</div>
+        </div>
+        <div>
+          <div class="flow-rating" id="flowRating">—</div>
+          <div class="flow-facts" id="flowFacts" style="margin-top:6px">Working out today's run from the freeze–thaw swing and pressure…</div>
+        </div>
+      </div>
+      <div class="flow-why" id="flowWhy">Sap runs when nights freeze below 32°F and days thaw into the 40s. Falling air pressure helps pull sap; a hard freeze with no thaw, or warm nights with no freeze, shut it down.</div>
+    </div>
+  </section>
+
+  <!-- MAP -->
+  <section class="card map-card">
+    <div class="map-toolbar">
+      <div class="seg" role="group" aria-label="Map imagery">
+        <button data-layer="aerial" class="on">Aerial</button>
+        <button data-layer="labels">Aerial + Labels</button>
+        <button data-layer="dark">Dark Street</button>
+        <button data-layer="street">Street</button>
+      </div>
+      <button class="tgl" id="parcelToggle" aria-pressed="false"><span class="sw"></span>Property lines</button>
+      <button class="btn" id="retryTiles">Retry tiles</button>
+      <button class="btn" id="locateBtn">Center on me</button>
+      <span class="map-status" id="mapStatus">Loading aerial tiles…</span>
+    </div>
+    <div id="map"></div>
+    <div class="map-toolbar" style="border-top:1px solid var(--line);border-bottom:0">
+      <span style="font-size:12.5px;color:var(--muted)">Imagery: Esri World Imagery / Esri street &amp; dark canvas tiles, with automatic fallback sources and per-tile retry. Property lines: NY State tax parcel service (best effort).</span>
+    </div>
+  </section>
+
+  <!-- ACTIONS -->
+  <section class="card actions">
+    <div class="quick-row">
+      <button class="btn gold mark-big" id="markTreeBtn">＋ Mark Tree Here</button>
+      <span class="quick-label">Quick mark at my GPS spot:</span>
+      <span id="quickChips" style="display:contents"></span>
+    </div>
+    <div class="mode-banner" id="runBanner">
+      <span id="runBannerText">Line run mode: tap waypoints on the map (or in the list) in order — each tap adds a tubing segment.</span>
+      <span style="display:flex;gap:8px">
+        <button class="btn gold" id="finishRun">Finish run</button>
+        <button class="btn" id="cancelRun">Cancel</button>
+      </span>
+    </div>
+    <div class="track-row">
+      <button class="btn" id="trackBtn">▶ Start GPS Track</button>
+      <div class="color-pick"><span class="lab">Track / run color:</span><span id="colorSwatches" style="display:contents"></span></div>
+      <button class="btn" id="drawRunBtn">〰 Draw Line Run</button>
+      <span style="font-size:13px;color:var(--muted)" id="trackInfo">Tracks trace your walked path with heading. Line runs draw straight tubing lines between waypoints.</span>
+    </div>
+  </section>
+
+  <div class="cols">
+    <!-- WAYPOINT FORM + LIST -->
+    <section class="card">
+      <h2 id="formTitle">Add Waypoint</h2>
+      <form id="wpForm">
+        <div class="grid">
+          <label class="f">Name<input id="fName" required placeholder="Tree 1" /></label>
+          <label class="f">Type
+            <select id="fType"></select>
+          </label>
+          <label class="f">Tree species / detail<input id="fSpecies" placeholder="Sugar maple, red maple…" /></label>
+          <label class="f">Health
+            <select id="fHealth">
+              <option value="healthy">Healthy</option><option value="watch">Watch</option>
+              <option value="poor">Poor</option><option value="dead">Dead</option><option value="na">N/A (equipment)</option>
+            </select>
+          </label>
+          <label class="f">Diameter (in)<input id="fDiam" type="number" min="0" step="0.5" placeholder="14" /></label>
+          <label class="f">Taps<input id="fTaps" type="number" min="0" step="1" placeholder="2" /></label>
+          <label class="f">Size<input id="fSize" placeholder='1" mainline, 275 gal tank…' /></label>
+          <label class="f">Capacity (gal)<input id="fCap" type="number" min="0" step="1" placeholder="275" /></label>
+          <label class="f">Gallons in it now<input id="fGal" type="number" min="0" step="0.5" placeholder="0" /></label>
+          <label class="f">Season
+            <select id="fSeason"><option>Winter</option><option>Spring</option><option>Summer</option><option>Fall</option></select>
+          </label>
+          <label class="f">Year<input id="fYear" type="number" min="2000" max="2100" /></label>
+          <label class="f">Latitude<input id="fLat" type="number" step="any" placeholder="Tap map or use GPS" /></label>
+          <label class="f">Longitude<input id="fLng" type="number" step="any" placeholder="Tap map or use GPS" /></label>
+          <label class="f full">Notes<textarea id="fNotes" placeholder="Lean, line #, bucket vs tubing, anything worth remembering…"></textarea></label>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn gold" id="saveWpBtn">Save waypoint</button>
+          <button type="button" class="btn" id="useGpsBtn">Use my GPS spot</button>
+          <button type="button" class="btn hidden" id="cancelEditBtn">Cancel edit</button>
+          <button type="button" class="btn danger hidden" id="deleteWpBtn">Delete</button>
+        </div>
+      </form>
+
+      <h2 style="margin-top:24px">Waypoints</h2>
+      <div class="filters">
+        <select id="fltType"><option value="">All types</option></select>
+        <select id="fltHealth"><option value="">Any health</option><option>healthy</option><option>watch</option><option>poor</option><option>dead</option></select>
+        <select id="fltSeason"><option value="">Any season</option><option>Winter</option><option>Spring</option><option>Summer</option><option>Fall</option></select>
+        <select id="fltYear"><option value="">Any year</option></select>
+        <select id="sortBy">
+          <option value="name">Sort: name</option><option value="newest">Sort: newest</option>
+          <option value="diam">Sort: biggest diameter</option><option value="taps">Sort: most taps</option>
+          <option value="type">Sort: type</option>
+        </select>
+      </div>
+      <div class="wp-list" id="wpList"></div>
+      <div class="totals" id="wpTotals"></div>
+    </section>
+
+    <!-- PRODUCTION + RUNS -->
+    <div style="display:flex;flex-direction:column;gap:18px">
+      <section class="card">
+        <h2>Production Log</h2>
+        <form id="prodForm">
+          <div class="grid">
+            <label class="f">Date<input id="pDate" type="date" required /></label>
+            <label class="f">Season year<input id="pYear" type="number" min="2000" max="2100" /></label>
+            <label class="f">Sap collected (gal)<input id="pColl" type="number" min="0" step="0.1" placeholder="400" /></label>
+            <label class="f">Through RO (gal)<input id="pRO" type="number" min="0" step="0.1" placeholder="380" /></label>
+            <label class="f">Boiled (gal)<input id="pBoil" type="number" min="0" step="0.1" placeholder="95" /></label>
+            <label class="f">Final syrup (gal)<input id="pSyrup" type="number" min="0" step="0.05" placeholder="9.5" /></label>
+            <label class="f">Syrup Brix<input id="pBrix" type="number" min="0" max="100" step="0.1" placeholder="66.5" /></label>
+            <label class="f">Sap sugar %<input id="pSugar" type="number" min="0" max="20" step="0.1" placeholder="2.1" /></label>
+            <label class="f full">Notes<input id="pNotes" placeholder="Boil notes, grade, filter press…" /></label>
+          </div>
+          <div class="form-actions"><button type="submit" class="btn gold">Add day</button></div>
+        </form>
+        <div class="totals" id="prodTotals"></div>
+        <div class="tbl-wrap" style="margin-top:14px">
+          <table>
+            <thead><tr><th>Date</th><th class="num">Collected</th><th class="num">RO</th><th class="num">Boiled</th><th class="num">Syrup</th><th class="num">Brix</th><th class="num">Sugar %</th><th></th></tr></thead>
+            <tbody id="prodBody"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="prodEmpty">No production days logged yet this session. Log the first boil above — season totals, average Brix and your sap-to-syrup ratio build themselves.</div>
+      </section>
+
+      <section class="card">
+        <h2>Line Runs (tubing)</h2>
+        <div id="runList"><div class="empty">No line runs drawn yet. Hit <b>Draw Line Run</b>, then tap waypoints in order to lay out a mainline or lateral exactly as it runs.</div></div>
+        <h2 style="margin-top:20px">GPS Tracks</h2>
+        <div id="trackList"><div class="empty">No tracks recorded yet. Start a GPS track and walk the bush — your path, heading and distance save here with the color you picked.</div></div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<footer>
+  Deez's Super Mega Syrup Tracker · Hamlin, NY · Data lives in this session on this device — log your day before closing the tab.
+  Planned home on the web: <b style="color:var(--text-dim)">drinkviscous.com</b> — deployment to that domain is a separate step after this build (GitHub → Vercel → GoDaddy DNS), and GoDaddy may require a verification code sent by text to finish the DNS change.
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function(){
+"use strict";
+/* ============ state (in-memory session) ============ */
+var HAMLIN = {lat:43.3231, lng:-77.9213};
+var state = {
+  pos:null, heading:null,
+  waypoints:[], runs:[], tracks:[], production:[],
+  editingId:null, runMode:false, runPicks:[], selectedId:null,
+  tracking:false, trackPts:[], trackColor:"#f2b33d", parcelOn:false,
+  counters:{}
+};
+var COLORS = ["#f2b33d","#e2603f","#6fc3df","#7fc95e","#c77dff","#ffffff","#ff7eb6"];
+var TYPES = {
+  tree:      {label:"Maple Tree",      color:"#7fc95e", icon:'<path d="M12 2 L20 12 H15 L21 20 H3 L9 12 H4 Z M11 20 H13 V23 H11 Z" fill="#fff"/>'},
+  valve:     {label:"Valve",           color:"#6fc3df", icon:'<circle cx="12" cy="12" r="5" fill="none" stroke="#fff" stroke-width="2.4"/><path d="M12 2 V7 M12 17 V22 M2 12 H7 M17 12 H22" stroke="#fff" stroke-width="2.4"/>'},
+  pump:      {label:"Vacuum Pump",     color:"#c77dff", icon:'<circle cx="12" cy="12" r="8.5" fill="none" stroke="#fff" stroke-width="2.2"/><path d="M12 5 A7 7 0 0 1 19 12 M12 19 A7 7 0 0 1 5 12" fill="none" stroke="#fff" stroke-width="2.2"/><circle cx="12" cy="12" r="2.4" fill="#fff"/>'},
+  sugarhouse:{label:"Sugarhouse",      color:"#f2b33d", icon:'<path d="M3 12 L12 4 L21 12 M6 11 V21 H18 V11 M10.5 21 V15 H13.5 V21" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/>'},
+  ladder:    {label:"Sap Ladder",      color:"#ffb84d", icon:'<path d="M8 3 V21 M16 3 V21 M8 8 H16 M8 13 H16 M8 18 H16" stroke="#fff" stroke-width="2.4"/>'},
+  tank:      {label:"Collection Tank", color:"#4db2ff", icon:'<rect x="4" y="6" width="16" height="13" rx="2.5" fill="none" stroke="#fff" stroke-width="2.2"/><path d="M4 12 H20" stroke="#fff" stroke-width="2.2"/><path d="M9 3 H15" stroke="#fff" stroke-width="2.4"/>'},
+  junction:  {label:"Junction",        color:"#ff7eb6", icon:'<circle cx="5" cy="12" r="2.6" fill="#fff"/><circle cx="19" cy="6" r="2.6" fill="#fff"/><circle cx="19" cy="18" r="2.6" fill="#fff"/><path d="M7.5 12 H13 M13 12 L16.8 7.2 M13 12 L16.8 16.8" stroke="#fff" stroke-width="2.2"/>'},
+  other:     {label:"Other",           color:"#c9a45c", icon:'<circle cx="12" cy="12" r="4" fill="#fff"/>'}
+};
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+function uid(){return "id"+Date.now().toString(36)+Math.floor(Math.random()*9999);}
+function toast(msg){var t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove("show");},3400);}
+function haversine(a,b){var R=6371000,rad=Math.PI/180;var dLat=(b.lat-a.lat)*rad,dLng=(b.lng-a.lng)*rad;var s=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(a.lat*rad)*Math.cos(b.lat*rad)*Math.sin(dLng/2)*Math.sin(dLng/2);return 2*R*Math.asin(Math.sqrt(s));}
+function fmtDist(m){if(m<1000)return Math.round(m)+" m";return (m/1609.34).toFixed(2)+" mi ("+Math.round(m*3.28084)+" ft)";}
+function seasonNow(){var m=new Date().getMonth();return m<=1||m===11?"Winter":m<=4?"Spring":m<=7?"Summer":"Fall";}
+
+/* ============ map: tile engine with fallback + retry ============ */
+var map=null, layers={}, activeLayer=null, parcelLayer=null, meMarker=null, wpLayer=null, drawLayer=null, trackLine=null;
+var PLACEHOLDER = "data:image/svg+xml;utf8,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#191007"/><text x="128" y="132" fill="#8a6a25" font-family="sans-serif" font-size="13" text-anchor="middle">tile retrying…</text></svg>');
+function resilientLayer(urls, opts){
+  var layer = L.gridLayer(Object.assign({maxZoom:19, attribution:""}, opts||{}));
+  layer.createTile = function(coords, done){
+    var img = document.createElement("img");
+    var srcs = urls.map(function(u){return u.replace("{z}",coords.z).replace("{x}",coords.x).replace("{y}",coords.y).replace("{s}","a");});
+    var attempt = 0, retries = 0;
+    img.alt = "";
+    img.onload = function(){ done(null, img); };
+    img.onerror = function(){
+      if (retries < 2) { retries++; setTimeout(function(){ img.src = srcs[attempt] + (srcs[attempt].indexOf("?")>-1?"&":"?") + "r=" + retries; }, 450*retries); return; }
+      attempt++;
+      if (attempt < srcs.length) { retries = 0; img.src = srcs[attempt]; return; }
+      img.src = PLACEHOLDER; done(null, img);
+    };
+    img.src = srcs[0];
+    return img;
+  };
+  return layer;
+}
+var ESRI_IMG = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+var ESRI_IMG_ALT = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+var ESRI_REF = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference_Overlay/MapServer/tile/{z}/{y}/{x}";
+var ESRI_STREET = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}";
+var ESRI_TOPO = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}";
+var ESRI_DARK = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}";
+var ESRI_DARK_REF = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}";
+function buildLayers(){
+  layers = {
+    aerial: resilientLayer([ESRI_IMG, ESRI_IMG_ALT]),
+    labels: resilientLayer([ESRI_IMG, ESRI_IMG_ALT]),
+    dark:   resilientLayer([ESRI_DARK, ESRI_IMG]),
+    street: resilientLayer([ESRI_STREET, ESRI_TOPO])
+  };
+  layers._labelsRef = resilientLayer([ESRI_REF]);
+  layers._darkRef = resilientLayer([ESRI_DARK_REF]);
+}
+function setLayer(name){
+  if(!map) return;
+  ["aerial","labels","dark","street"].forEach(function(k){ if(layers[k] && map.hasLayer(layers[k])) map.removeLayer(layers[k]); });
+  ["_labelsRef","_darkRef"].forEach(function(k){ if(layers[k] && map.hasLayer(layers[k])) map.removeLayer(layers[k]); });
+  map.addLayer(layers[name]); activeLayer = name;
+  if(name==="labels") map.addLayer(layers._labelsRef);
+  if(name==="dark") map.addLayer(layers._darkRef);
+  document.querySelectorAll(".seg button").forEach(function(b){ b.classList.toggle("on", b.dataset.layer===name); });
+  $("mapStatus").textContent = name==="aerial"||name==="labels" ? "Aerial: Esri World Imagery" : name==="dark" ? "Dark Street: Esri dark canvas + labels (buildings at street zoom)" : "Street: Esri World Street Map";
+  $("mapStatus").classList.remove("err");
+  try{ localStorage.setItem("syrupLayer", name); }catch(e){}
+}
+function initMap(){
+  if(typeof L === "undefined"){
+    $("mapStatus").textContent = "Map library couldn't load — check connection and hit Retry tiles. Everything below the map still works.";
+    $("mapStatus").classList.add("err");
+    $("map").innerHTML = '<div style="padding:28px;color:var(--text-dim);font-size:14.5px;line-height:1.6">The map engine didn\'t load (network hiccup). Your waypoints, production log and weather tools below are unaffected.<br><br><button class="btn gold" onclick="location.reload()">Reload page</button></div>';
+    return;
+  }
+  var start = HAMLIN;
+  map = L.map("map",{zoomControl:true}).setView([start.lat,start.lng], 15);
+  buildLayers();
+  var saved = null; try{ saved = localStorage.getItem("syrupLayer"); }catch(e){}
+  setLayer(saved && layers[saved] ? saved : "aerial");
+  wpLayer = L.layerGroup().addTo(map);
+  drawLayer = L.layerGroup().addTo(map);
+  map.on("click", function(e){
+    if(state.runMode) return;
+    $("fLat").value = e.latlng.lat.toFixed(6);
+    $("fLng").value = e.latlng.lng.toFixed(6);
+    toast("Coordinates dropped into the form — name it and save.");
+  });
+  var errCount = 0;
+  map.on("tileerror", function(){ errCount++; if(errCount===12){ $("mapStatus").textContent="Tiles struggling — fallback source engaged, or hit Retry tiles."; $("mapStatus").classList.add("err"); } });
+  setTimeout(function(){ if(map) map.invalidateSize(); }, 400);
+}
+
+/* property lines: NY statewide tax parcels (best effort) */
+function toggleParcels(){
+  state.parcelOn = !state.parcelOn;
+  $("parcelToggle").classList.toggle("on", state.parcelOn);
+  $("parcelToggle").setAttribute("aria-pressed", state.parcelOn ? "true":"false");
+  if(!state.parcelOn){ if(parcelLayer){ map.removeLayer(parcelLayer); parcelLayer=null; } return; }
+  loadParcels();
+  if(!map._parcelBound){ map.on("moveend", function(){ if(state.parcelOn) loadParcels(); }); map._parcelBound = true; }
+}
+var parcelBusy=false;
+function loadParcels(){
+  if(parcelBusy || !map || map.getZoom() < 14) { if(map && map.getZoom()<14) toast("Zoom in closer to load property lines."); return; }
+  parcelBusy = true;
+  var b = map.getBounds();
+  var url = "https://gisservices.its.ny.gov/arcgis/rest/services/NYS_Tax_Parcels_Public/MapServer/0/query?where=1%3D1&geometry="+
+    encodeURIComponent(b.getWest()+","+b.getSouth()+","+b.getEast()+","+b.getNorth())+
+    "&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326&outFields=PARCEL_ADDR,PRINT_KEY&returnGeometry=true&f=geojson&resultRecordCount=400";
+  fetch(url).then(function(r){ if(!r.ok) throw new Error("parcel service "+r.status); return r.json(); })
+  .then(function(gj){
+    parcelBusy=false;
+    if(parcelLayer) map.removeLayer(parcelLayer);
+    if(!gj.features || !gj.features.length){ toast("No parcel lines returned for this view."); return; }
+    parcelLayer = L.geoJSON(gj,{style:{color:"#ffd873",weight:1.4,fillOpacity:0.04}}).addTo(map);
+    toast(gj.features.length+" property parcels drawn.");
+  }).catch(function(){ parcelBusy=false; toast("Property line service didn't answer — aerial still works; try again in a bit."); });
+}
+
+/* ============ GPS ============ */
+function startGPS(){
+  if(!("geolocation" in navigator)){ $("gpsText").textContent="GPS: not available on this device"; $("gpsDot").className="gps-dot err"; return; }
+  navigator.geolocation.watchPosition(function(p){
+    state.pos = {lat:p.coords.latitude, lng:p.coords.longitude};
+    state.heading = p.coords.heading;
+    $("gpsDot").className = "gps-dot live";
+    $("gpsText").textContent = "GPS: "+state.pos.lat.toFixed(5)+", "+state.pos.lng.toFixed(5)+" · ±"+Math.round(p.coords.accuracy)+" m"+(state.heading!=null?" · heading "+Math.round(state.heading)+"°":"");
+    if(map){
+      if(!meMarker){ meMarker = L.marker([state.pos.lat,state.pos.lng],{icon:L.divIcon({className:"",html:'<div class="me-dot"></div>',iconSize:[18,18],iconAnchor:[9,9]}),zIndexOffset:1000}).addTo(map); }
+      else meMarker.setLatLng([state.pos.lat,state.pos.lng]);
+    }
+    if(state.tracking){
+      var last = state.trackPts[state.trackPts.length-1];
+      if(!last || haversine(last, state.pos) > 4){
+        state.trackPts.push({lat:state.pos.lat, lng:state.pos.lng});
+        drawLiveTrack(); updateTrackInfo();
+      }
+    }
+  }, function(err){
+    $("gpsDot").className="gps-dot err";
+    $("gpsText").textContent = "GPS: "+(err.code===1?"permission denied — allow location to mark trees":"signal unavailable");
+  }, {enableHighAccuracy:true, maximumAge:4000, timeout:15000});
+}
+
+/* ============ tracks ============ */
+function drawLiveTrack(){
+  if(!map) return;
+  if(trackLine){ map.removeLayer(trackLine); trackLine=null; }
+  if(state.trackPts.length>1){
+    trackLine = L.polyline(state.trackPts.map(function(p){return [p.lat,p.lng];}),{color:state.trackColor,weight:5,opacity:.9}).addTo(map);
+  }
+}
+function trackDistance(pts){ var d=0; for(var i=1;i<pts.length;i++) d+=haversine(pts[i-1],pts[i]); return d; }
+function updateTrackInfo(){
+  $("trackInfo").textContent = "Recording… "+state.trackPts.length+" points · "+fmtDist(trackDistance(state.trackPts));
+}
+function toggleTrack(){
+  if(!state.tracking){
+    if(!state.pos){ toast("No GPS fix yet — step outside / wait for the blue dot, then start the track."); return; }
+    state.tracking = true; state.trackPts = [{lat:state.pos.lat,lng:state.pos.lng}];
+    $("trackBtn").textContent = "■ Stop & Save Track"; $("trackBtn").classList.add("rec");
+    toast("Track recording — walk your route.");
+  } else {
+    state.tracking = false;
+    $("trackBtn").textContent = "▶ Start GPS Track"; $("trackBtn").classList.remove("rec");
+    if(state.trackPts.length>1){
+      var name = "Track "+(state.tracks.length+1)+" — "+new Date().toLocaleDateString();
+      state.tracks.unshift({id:uid(), name:name, color:state.trackColor, pts:state.trackPts.slice(), dist:trackDistance(state.trackPts), year:new Date().getFullYear(), season:seasonNow()});
+      L.polyline(state.trackPts.map(function(p){return [p.lat,p.lng];}),{color:state.trackColor,weight:5,opacity:.9}).addTo(drawLayer);
+      toast("Track saved: "+fmtDist(state.tracks[0].dist));
+    } else toast("Track too short to save.");
+    state.trackPts = []; if(trackLine){ map.removeLayer(trackLine); trackLine=null; }
+    $("trackInfo").textContent = "Tracks trace your walked path with heading. Line runs draw straight tubing lines between waypoints.";
+    renderTracks();
+  }
+}
+function renderTracks(){
+  var box = $("trackList");
+  if(!state.tracks.length){ box.innerHTML = '<div class="empty">No tracks recorded yet. Start a GPS track and walk the bush — your path, heading and distance save here with the color you picked.</div>'; return; }
+  box.innerHTML = "";
+  state.tracks.forEach(function(t){
+    var d = document.createElement("div"); d.className="track-item";
+    d.innerHTML = '<span class="track-line" style="background:'+esc(t.color)+'"></span><span style="flex:1"><b>'+esc(t.name)+'</b><br><span style="color:var(--text-dim);font-size:12.5px">'+fmtDist(t.dist)+' · '+t.pts.length+' points · '+esc(t.season)+' '+t.year+'</span></span>';
+    var del = document.createElement("button"); del.className="mini"; del.textContent="Delete";
+    del.onclick = function(){ state.tracks = state.tracks.filter(function(x){return x.id!==t.id;}); redrawDrawLayer(); renderTracks(); };
+    d.appendChild(del); box.appendChild(d);
+  });
+}
+
+/* ============ line runs ============ */
+function redrawDrawLayer(){
+  if(!drawLayer) return;
+  drawLayer.clearLayers();
+  state.tracks.forEach(function(t){ L.polyline(t.pts.map(function(p){return [p.lat,p.lng];}),{color:t.color,weight:5,opacity:.9}).addTo(drawLayer); });
+  state.runs.forEach(function(r){
+    var pts = r.wpIds.map(function(id){ var w=findWp(id); return w?[w.lat,w.lng]:null; }).filter(Boolean);
+    if(pts.length>1) L.polyline(pts,{color:r.color,weight:4,dashArray:"9 7",opacity:.95}).addTo(drawLayer);
+  });
+  if(state.runMode && state.runPicks.length>1){
+    var pts2 = state.runPicks.map(function(id){ var w=findWp(id); return [w.lat,w.lng]; });
+    L.polyline(pts2,{color:state.trackColor,weight:4,dashArray:"3 6"}).addTo(drawLayer);
+  }
+}
+function findWp(id){ for(var i=0;i<state.waypoints.length;i++) if(state.waypoints[i].id===id) return state.waypoints[i]; return null; }
+function toggleRunMode(on){
+  state.runMode = on; state.runPicks = [];
+  $("runBanner").classList.toggle("show", on);
+  $("drawRunBtn").textContent = on ? "〰 Drawing… tap waypoints" : "〰 Draw Line Run";
+  redrawDrawLayer();
+}
+function pickForRun(w){
+  if(state.runPicks[state.runPicks.length-1]===w.id) return;
+  state.runPicks.push(w.id);
+  $("runBannerText").textContent = "Line run: "+state.runPicks.map(function(id){return findWp(id).name;}).join(" → ")+" · "+fmtDist(trackDistance(state.runPicks.map(function(id){var x=findWp(id);return {lat:x.lat,lng:x.lng};})));
+  redrawDrawLayer(); renderWpList();
+}
+function finishRun(){
+  if(state.runPicks.length<2){ toast("Tap at least two waypoints to make a run."); return; }
+  var name = "Run "+(state.runs.length+1)+" — "+state.runPicks.map(function(id){return findWp(id).name;}).join(" → ");
+  var size = prompt2("Line size for this run (e.g. 1\" mainline, 3/16 lateral):", "3/4\" mainline");
+  state.runs.unshift({id:uid(), name:name, size:size||"", color:state.trackColor, wpIds:state.runPicks.slice(), dist:trackDistance(state.runPicks.map(function(id){var x=findWp(id);return {lat:x.lat,lng:x.lng};}))});
+  toggleRunMode(false); renderRuns(); redrawDrawLayer(); toast("Line run saved.");
+}
+function prompt2(msg, def){ return def; } /* default line size; runs note it in their label */
+function renderRuns(){
+  var box = $("runList");
+  if(!state.runs.length){ box.innerHTML = '<div class="empty">No line runs drawn yet. Hit <b>Draw Line Run</b>, then tap waypoints in order to lay out a mainline or lateral exactly as it runs.</div>'; return; }
+  box.innerHTML = "";
+  state.runs.forEach(function(r){
+    var d = document.createElement("div"); d.className="run-item";
+    d.innerHTML = '<span class="run-line" style="border-color:'+esc(r.color)+'"></span><span style="flex:1"><b>'+esc(r.name)+'</b><br><span style="color:var(--text-dim);font-size:12.5px">'+esc(r.size||"size not set")+' · '+fmtDist(r.dist)+' of tubing</span></span>';
+    var del = document.createElement("button"); del.className="mini"; del.textContent="Delete";
+    del.onclick = function(){ state.runs = state.runs.filter(function(x){return x.id!==r.id;}); renderRuns(); redrawDrawLayer(); };
+    d.appendChild(del); box.appendChild(d);
+  });
+}
+
+/* ============ waypoints ============ */
+function iconFor(w, sel){
+  var t = TYPES[w.type] || TYPES.other;
+  return L.divIcon({className:"wp-icon", iconSize:[34,34], iconAnchor:[17,32],
+    html:'<div class="wp-pin'+(sel?" sel":"")+'" style="background:'+t.color+'"><svg viewBox="0 0 24 24">'+t.icon+'</svg></div>'});
+}
+function renderMarkers(){
+  if(!wpLayer) return;
+  wpLayer.clearLayers();
+  state.waypoints.forEach(function(w){
+    var m = L.marker([w.lat,w.lng],{icon:iconFor(w, state.selectedId===w.id || state.runPicks.indexOf(w.id)>-1)});
+    var t = TYPES[w.type]||TYPES.other;
+    var html = "<b>"+esc(w.name)+"</b> · "+esc(t.label)+"<br>"+
+      (w.species?esc(w.species)+"<br>":"")+
+      (w.diam?'Diameter: '+w.diam+' in<br>':"")+(w.taps!==""&&w.taps!=null?'Taps: '+w.taps+"<br>":"")+
+      (w.size?"Size: "+esc(w.size)+"<br>":"")+(w.cap?'Capacity: '+w.cap+' gal<br>':"")+(w.gal?'Holding: '+w.gal+' gal<br>':"")+
+      (w.health && w.health!=="na"?'Health: '+esc(w.health)+"<br>":"")+
+      esc(w.season||"")+" "+(w.year||"")+(w.notes?"<br>"+esc(w.notes):"")+
+      '<br><button class="pop-edit" data-edit="'+w.id+'">Edit</button>'+(state.runMode?' <button class="pop-edit" data-pick="'+w.id+'">Add to run</button>':"");
+    m.bindPopup(html);
+    m.on("click", function(){ if(state.runMode) pickForRun(w); });
+    m.addTo(wpLayer);
+  });
+}
+function autoName(type){
+  state.counters[type] = (state.counters[type]||0)+1;
+  if(type==="tree") return "Tree "+state.counters[type];
+  return (TYPES[type].label)+" "+state.counters[type];
+}
+function quickMark(type){
+  if(!state.pos){ toast("No GPS fix yet — wait for the blue dot, or tap the map to place it."); return; }
+  var w = { id:uid(), name:autoName(type), type:type, species:"", health:type==="tree"?"healthy":"na",
+    diam:"", taps:type==="tree"?1:"", size:"", cap:"", gal:"", notes:"",
+    lat:state.pos.lat, lng:state.pos.lng, year:new Date().getFullYear(), season:seasonNow() };
+  state.waypoints.unshift(w);
+  renderAllWp(); toast(w.name+" dropped at your spot.");
+  if(map) map.flyTo([w.lat,w.lng], Math.max(map.getZoom(),17));
+}
+function fillForm(w){
+  $("fName").value=w.name; $("fType").value=w.type; $("fSpecies").value=w.species||"";
+  $("fHealth").value=w.health||"healthy"; $("fDiam").value=w.diam; $("fTaps").value=w.taps;
+  $("fSize").value=w.size||""; $("fCap").value=w.cap; $("fGal").value=w.gal;
+  $("fSeason").value=w.season||seasonNow(); $("fYear").value=w.year||new Date().getFullYear();
+  $("fLat").value=w.lat; $("fLng").value=w.lng; $("fNotes").value=w.notes||"";
+}
+function resetForm(){
+  state.editingId=null; $("wpForm").reset();
+  $("fYear").value=new Date().getFullYear(); $("fSeason").value=seasonNow();
+  $("formTitle").textContent="Add Waypoint"; $("saveWpBtn").textContent="Save waypoint";
+  $("cancelEditBtn").classList.add("hidden"); $("deleteWpBtn").classList.add("hidden");
+}
+function editWp(id){
+  var w = findWp(id); if(!w) return;
+  state.editingId=id; fillForm(w);
+  $("formTitle").textContent="Edit — "+w.name; $("saveWpBtn").textContent="Update waypoint";
+  $("cancelEditBtn").classList.remove("hidden"); $("deleteWpBtn").classList.remove("hidden");
+  document.querySelector("#wpForm").scrollIntoView({behavior:"smooth", block:"center"});
+}
+function renderWpList(){
+  var ft=$("fltType").value, fh=$("fltHealth").value, fs=$("fltSeason").value, fy=$("fltYear").value, sb=$("sortBy").value;
+  var list = state.waypoints.filter(function(w){
+    return (!ft||w.type===ft)&&(!fh||w.health===fh)&&(!fs||w.season===fs)&&(!fy||String(w.year)===fy);
+  });
+  list.sort(function(a,b){
+    if(sb==="diam") return (parseFloat(b.diam)||0)-(parseFloat(a.diam)||0);
+    if(sb==="taps") return (parseFloat(b.taps)||0)-(parseFloat(a.taps)||0);
+    if(sb==="type") return a.type.localeCompare(b.type)||a.name.localeCompare(b.name);
+    if(sb==="newest") return 0;
+    return a.name.localeCompare(b.name, undefined, {numeric:true});
+  });
+  var box = $("wpList"); box.innerHTML="";
+  if(!list.length){ box.innerHTML = '<div class="empty">'+(state.waypoints.length?"No waypoints match those filters.":"Nothing pinned yet. Use MARK TREE or a quick-mark chip at your GPS spot, or tap the map to drop coordinates into the form.")+'</div>'; }
+  list.forEach(function(w){
+    var t = TYPES[w.type]||TYPES.other;
+    var d = document.createElement("div"); d.className="wp-item"+((state.selectedId===w.id||state.runPicks.indexOf(w.id)>-1)?" sel":"");
+    var meta = [t.label, w.species, w.diam?w.diam+' in Ø':"", w.taps!==""&&w.taps!=null?w.taps+" taps":"", w.size, w.cap?w.cap+" gal cap":"", w.gal?w.gal+" gal in it":"", w.season+" "+w.year].filter(Boolean).join(" · ");
+    d.innerHTML = '<div class="wp-badge" style="background:'+t.color+'"><svg viewBox="0 0 24 24">'+t.icon+'</svg></div>'+
+      '<div class="wp-main"><div class="wp-name">'+esc(w.name)+(w.health&&w.health!=="na"?' · <span class="health '+esc(w.health)+'">'+esc(w.health)+'</span>':"")+'</div><div class="wp-meta">'+esc(meta)+(w.notes?'<br>'+esc(w.notes):"")+'</div></div>';
+    var btns = document.createElement("div"); btns.className="wp-btns";
+    var go = document.createElement("button"); go.className="mini"; go.textContent="Show";
+    go.onclick=function(){ state.selectedId=w.id; renderMarkers(); renderWpList(); if(map) map.flyTo([w.lat,w.lng], Math.max(map.getZoom(),17)); };
+    var ed = document.createElement("button"); ed.className="mini"; ed.textContent="Edit";
+    ed.onclick=function(){ editWp(w.id); };
+    btns.appendChild(go); btns.appendChild(ed);
+    if(state.runMode){ var pk=document.createElement("button"); pk.className="mini"; pk.textContent="+ Run"; pk.onclick=function(){ pickForRun(w); }; btns.appendChild(pk); }
+    d.appendChild(btns); box.appendChild(d);
+  });
+  var trees = state.waypoints.filter(function(w){return w.type==="tree";});
+  var taps = state.waypoints.reduce(function(s,w){return s+(parseFloat(w.taps)||0);},0);
+  var totals = [
+    {v: state.waypoints.length, k:"Waypoints"},
+    {v: trees.length, k:"Trees"},
+    {v: taps, k:"Total taps"},
+    {v: state.waypoints.filter(function(w){return w.health==="poor"||w.health==="dead";}).length, k:"Poor / dead"}
+  ];
+  $("wpTotals").innerHTML = totals.map(function(t){return '<div class="tot"><div class="v">'+t.v+'</div><div class="k">'+t.k+'</div></div>';}).join("");
+  var yrs = {}; state.waypoints.forEach(function(w){ yrs[w.year]=1; });
+  var fyEl = $("fltYear"), cur = fyEl.value;
+  fyEl.innerHTML = '<option value="">Any year</option>' + Object.keys(yrs).sort().map(function(y){return '<option'+(String(y)===cur?" selected":"")+'>'+y+'</option>';}).join("");
+}
+function renderAllWp(){ renderMarkers(); renderWpList(); if(state.lastWx) computeSapFlow(state.lastWx); }
+
+/* ============ production ============ */
+function renderProduction(){
+  var body = $("prodBody"); body.innerHTML="";
+  $("prodEmpty").style.display = state.production.length ? "none":"block";
+  state.production.forEach(function(p){
+    var tr = document.createElement("tr");
+    function td(l,v,num){ return '<td data-l="'+l+'"'+(num?' class="num"':"")+'>'+(v===""||v==null?"—":v)+'</td>'; }
+    tr.innerHTML = td("Date", esc(p.date)) + td("Collected", p.coll, 1) + td("RO", p.ro, 1) + td("Boiled", p.boil, 1) + td("Syrup", p.syrup, 1) + td("Brix", p.brix, 1) + td("Sugar %", p.sugar, 1);
+    var delTd = document.createElement("td");
+    var del = document.createElement("button"); del.className="mini"; del.textContent="✕";
+    del.onclick=function(){ state.production = state.production.filter(function(x){return x.id!==p.id;}); renderProduction(); };
+    delTd.appendChild(del); tr.appendChild(delTd); body.appendChild(tr);
+  });
+  function sum(k){ return state.production.reduce(function(s,p){return s+(parseFloat(p[k])||0);},0); }
+  var coll=sum("coll"), syrup=sum("syrup");
+  var brixVals = state.production.map(function(p){return parseFloat(p.brix);}).filter(function(v){return !isNaN(v);});
+  var sugVals = state.production.map(function(p){return parseFloat(p.sugar);}).filter(function(v){return !isNaN(v);});
+  var avgB = brixVals.length ? (brixVals.reduce(function(a,b){return a+b;},0)/brixVals.length).toFixed(1) : "—";
+  var avgS = sugVals.length ? (sugVals.reduce(function(a,b){return a+b;},0)/sugVals.length).toFixed(1)+"%" : "—";
+  var ratio = (coll && syrup) ? (coll/syrup).toFixed(1)+" : 1" : "—";
+  var tots = [
+    {v: coll.toLocaleString(), k:"Gal collected"}, {v: sum("ro").toLocaleString(), k:"Gal through RO"},
+    {v: sum("boil").toLocaleString(), k:"Gal boiled"}, {v: syrup.toLocaleString(), k:"Gal syrup made"},
+    {v: avgB, k:"Avg Brix"}, {v: avgS, k:"Avg sap sugar"}, {v: ratio, k:"Sap : syrup ratio"}
+  ];
+  $("prodTotals").innerHTML = tots.map(function(t){return '<div class="tot"><div class="v">'+t.v+'</div><div class="k">'+t.k+'</div></div>';}).join("");
+}
+
+/* ============ weather + sap flow (Open-Meteo, no key) ============ */
+function wxCodeText(c){
+  if(c===0) return "Clear sky"; if(c<=2) return "Partly cloudy"; if(c===3) return "Overcast";
+  if(c===45||c===48) return "Fog"; if(c>=51&&c<=57) return "Drizzle"; if(c>=61&&c<=67) return "Rain";
+  if(c>=71&&c<=77) return "Snow"; if(c>=80&&c<=82) return "Rain showers"; if(c>=85&&c<=86) return "Snow showers";
+  if(c>=95) return "Thunderstorm"; return "—";
+}
+function loadWeather(lat, lng, place){
+  $("wxPlace").textContent = place || "Hamlin, NY";
+  var url = "https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lng+
+    "&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,surface_pressure,wind_speed_10m"+
+    "&hourly=surface_pressure&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"+
+    "&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FNew_York&forecast_days=5";
+  fetch(url).then(function(r){ if(!r.ok) throw new Error("wx "+r.status); return r.json(); })
+  .then(function(d){ state.lastWx = d; renderWeather(d); computeSapFlow(d); })
+  .catch(function(){ $("wxBody").innerHTML = '<p class="wx-status err">Weather service didn\'t answer — check connection and reopen. Sap flow needs the forecast, so it\'s paused too.</p>'; });
+}
+function renderWeather(d){
+  var c = d.current;
+  var html = '<div class="wx-now"><span class="wx-temp">'+Math.round(c.temperature_2m)+'°F</span>'+
+    '<span class="wx-cond">'+esc(wxCodeText(c.weather_code))+'<br><span style="color:var(--text-dim);font-size:13px">Feels like '+Math.round(c.apparent_temperature)+'°F</span></span></div>'+
+    '<div class="wx-stats"><span>Air pressure <b>'+(c.surface_pressure*0.02953).toFixed(2)+' inHg</b> ('+Math.round(c.surface_pressure)+' hPa)</span>'+
+    '<span>Humidity <b>'+c.relative_humidity_2m+'%</b></span><span>Wind <b>'+Math.round(c.wind_speed_10m)+' mph</b></span></div>'+
+    '<div class="pressure-note">Pressure matters for sap: falling pressure ahead of a warm front tends to open the taps up; a hard high-pressure freeze with no thaw shuts them down.</div>';
+  $("wxBody").innerHTML = html;
+  var days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  var fc = "";
+  for(var i=0;i<Math.min(4, d.daily.time.length);i++){
+    var dt = new Date(d.daily.time[i]+"T12:00:00");
+    fc += '<div class="fc-day"><div class="d">'+(i===0?"Today":days[dt.getDay()])+'</div><div class="t">'+Math.round(d.daily.temperature_2m_max[i])+'° / '+Math.round(d.daily.temperature_2m_min[i])+'°</div><div class="c">'+esc(wxCodeText(d.daily.weather_code[i]))+'<br>Precip '+(d.daily.precipitation_probability_max[i]==null?"—":d.daily.precipitation_probability_max[i]+"%")+'</div></div>';
+  }
+  $("wxForecast").innerHTML = fc;
+}
+function computeSapFlow(d){
+  var tmax = d.daily.temperature_2m_max[0], tmin = d.daily.temperature_2m_min[0];
+  var tmax1 = d.daily.temperature_2m_max[1], tmin1 = d.daily.temperature_2m_min[1];
+  /* pressure trend: now vs ~12h from now */
+  var trend = 0;
+  try{
+    var now = new Date(d.current.time).getTime();
+    var idx = 0, best = 1e18;
+    d.hourly.time.forEach(function(t,i){ var diff = Math.abs(new Date(t).getTime()-now); if(diff<best){best=diff;idx=i;} });
+    var later = d.hourly.surface_pressure[Math.min(idx+12, d.hourly.surface_pressure.length-1)];
+    trend = later - d.current.surface_pressure; /* hPa */
+  }catch(e){}
+  function dayScore(mx, mn){
+    var s = 0;
+    if(mn <= 32 && mx >= 38) s += 45;            /* freeze-thaw core */
+    if(mn >= 24 && mn <= 32) s += 15;            /* solid freeze, not brutal */
+    if(mx >= 42 && mx <= 52) s += 20;            /* prime thaw band */
+    if(mx > 58) s -= 12;                          /* too warm, season ending */
+    if(mn > 36) s -= 28;                          /* no freeze = no pressure in tree */
+    if(mx < 36) s -= 25;                          /* never thaws */
+    if(mn < 12) s -= 10;                          /* deep freeze slows it */
+    return s;
+  }
+  var score = dayScore(tmax, tmin);
+  if(trend <= -2) score += 14; else if(trend < -0.5) score += 7; else if(trend >= 2.5) score -= 8;
+  score = Math.max(0, Math.min(100, score));
+  var rating, cls, galPerTap;
+  if(score >= 70){ rating="GREAT"; cls="great"; galPerTap=1.1; }
+  else if(score >= 50){ rating="GOOD"; cls="good"; galPerTap=0.7; }
+  else if(score >= 30){ rating="AVERAGE"; cls="average"; galPerTap=0.35; }
+  else { rating="BAD"; cls="bad"; galPerTap=0.08; }
+  var taps = state.waypoints.reduce(function(s,w){return s+(parseFloat(w.taps)||0);},0);
+  var estGal = taps ? Math.round(galPerTap*taps) : Math.round(galPerTap*250);
+  var basis = taps ? taps+" taps on your pins" : "your 250-tree bush (est.)";
+  $("flowRating").textContent = rating+" FLOW";
+  $("flowRating").className = "flow-rating "+cls;
+  var pct = Math.round(score);
+  var fill = $("bucketFill");
+  var h = 56 * (pct/100);
+  fill.setAttribute("y", 82-h); fill.setAttribute("height", h);
+  fill.setAttribute("fill", cls==="great"||cls==="good" ? "#e79b1e" : cls==="average" ? "#b96a00" : "#6b4a12");
+  $("bucketCap").innerHTML = "~"+estGal+" gal expected<br/>today";
+  $("flowFacts").innerHTML = "Predicted <b>~"+galPerTap.toFixed(2)+" gal per tap</b> · ~<b>"+estGal+" gal</b> across "+basis+".<br>Tomorrow leans "+(dayScore(tmax1,tmin1) >= 50 ? "<b>strong</b>" : dayScore(tmax1,tmin1) >= 30 ? "<b>fair</b>" : "<b>weak</b>")+" ("+Math.round(tmax1)+"° / "+Math.round(tmin1)+"°).";
+  $("flowWhy").textContent = "Why: last night "+Math.round(tmin)+"°F ("+(tmin<=32?"froze ✓":"no freeze ✗")+"), today "+Math.round(tmax)+"°F ("+(tmax>=38&&tmax<=55?"prime thaw ✓":tmax<38?"barely thaws":"warm")+")"+", pressure "+(trend<=-0.5?"falling "+Math.abs(trend).toFixed(1)+" hPa — helps flow":trend>=0.5?"rising "+trend.toFixed(1)+" hPa — works against flow":"steady")+". Score "+pct+"/100 from the freeze–thaw swing and 12-hour pressure trend.";
+}
+
+/* ============ wiring ============ */
+function buildControls(){
+  var typeSel = $("fType"), fltSel = $("fltType");
+  Object.keys(TYPES).forEach(function(k){
+    typeSel.innerHTML += '<option value="'+k+'">'+TYPES[k].label+'</option>';
+    fltSel.innerHTML += '<option value="'+k+'">'+TYPES[k].label+'</option>';
+    var chip = document.createElement("button"); chip.className="chip"; chip.type="button";
+    chip.innerHTML = '<span class="dot" style="background:'+TYPES[k].color+'"><svg viewBox="0 0 24 24">'+TYPES[k].icon+'</svg></span>'+TYPES[k].label.replace("Maple ","");
+    chip.onclick = (function(t){ return function(){ quickMark(t); }; })(k);
+    $("quickChips").appendChild(chip);
+  });
+  COLORS.forEach(function(c, i){
+    var s = document.createElement("button"); s.className="swatch"+(i===0?" on":""); s.type="button"; s.style.background=c; s.title=c;
+    s.onclick = function(){ state.trackColor=c; document.querySelectorAll(".swatch").forEach(function(x){x.classList.remove("on");}); s.classList.add("on"); if(state.tracking) drawLiveTrack(); redrawDrawLayer(); };
+    $("colorSwatches").appendChild(s);
+  });
+  $("fYear").value = new Date().getFullYear(); $("fSeason").value = seasonNow();
+  $("pDate").value = new Date().toISOString().slice(0,10); $("pYear").value = new Date().getFullYear();
+  document.querySelectorAll(".seg button").forEach(function(b){ b.onclick = function(){ setLayer(b.dataset.layer); }; });
+  $("retryTiles").onclick = function(){ if(typeof L === "undefined"){ location.reload(); return; } if(!map){ initMap(); renderAllWp(); redrawDrawLayer(); return; } var cur = activeLayer; buildLayers(); setLayer(cur); toast("Tiles reloaded from primary source."); };
+  $("locateBtn").onclick = function(){ if(state.pos && map) map.flyTo([state.pos.lat,state.pos.lng], 17); else toast("No GPS fix yet."); };
+  $("parcelToggle").onclick = toggleParcels;
+  $("markTreeBtn").onclick = function(){ quickMark("tree"); };
+  $("trackBtn").onclick = toggleTrack;
+  $("drawRunBtn").onclick = function(){ toggleRunMode(!state.runMode); };
+  $("finishRun").onclick = finishRun;
+  $("cancelRun").onclick = function(){ toggleRunMode(false); };
+  $("useGpsBtn").onclick = function(){ if(state.pos){ $("fLat").value=state.pos.lat.toFixed(6); $("fLng").value=state.pos.lng.toFixed(6); } else toast("No GPS fix yet."); };
+  $("cancelEditBtn").onclick = resetForm;
+  $("deleteWpBtn").onclick = function(){
+    if(!state.editingId) return;
+    state.waypoints = state.waypoints.filter(function(w){return w.id!==state.editingId;});
+    state.runs.forEach(function(r){ r.wpIds = r.wpIds.filter(function(id){return id!==state.editingId;}); });
+    resetForm(); renderAllWp(); renderRuns(); redrawDrawLayer(); toast("Waypoint deleted.");
+  };
+  ["fltType","fltHealth","fltSeason","fltYear","sortBy"].forEach(function(id){ $(id).onchange = renderWpList; });
+  document.addEventListener("click", function(e){
+    var ed = e.target.getAttribute && e.target.getAttribute("data-edit");
+    var pk = e.target.getAttribute && e.target.getAttribute("data-pick");
+    if(ed) editWp(ed);
+    if(pk){ var w = findWp(pk); if(w) pickForRun(w); }
+  });
+  $("wpForm").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    var lat = parseFloat($("fLat").value), lng = parseFloat($("fLng").value);
+    if(isNaN(lat)||isNaN(lng)){ toast("That waypoint has no coordinates — tap the map, use your GPS spot, or type lat/lng first. (Blank coords are blocked so nothing lands at 0,0.)"); return; }
+    var data = { name:$("fName").value.trim()||autoName($("fType").value), type:$("fType").value, species:$("fSpecies").value.trim(),
+      health:$("fHealth").value, diam:$("fDiam").value, taps:$("fTaps").value, size:$("fSize").value.trim(),
+      cap:$("fCap").value, gal:$("fGal").value, season:$("fSeason").value, year:parseInt($("fYear").value,10)||new Date().getFullYear(),
+      lat:lat, lng:lng, notes:$("fNotes").value.trim() };
+    if(state.editingId){ var w = findWp(state.editingId); Object.assign(w, data); toast(w.name+" updated."); }
+    else { data.id = uid(); state.waypoints.unshift(data); toast(data.name+" saved."); }
+    resetForm(); renderAllWp(); redrawDrawLayer();
+    if(map) map.flyTo([lat,lng], Math.max(map.getZoom(),16));
+  });
+  $("prodForm").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    state.production.unshift({ id:uid(), date:$("pDate").value, year:$("pYear").value,
+      coll:$("pColl").value, ro:$("pRO").value, boil:$("pBoil").value, syrup:$("pSyrup").value,
+      brix:$("pBrix").value, sugar:$("pSugar").value, notes:$("pNotes").value.trim() });
+    state.production.sort(function(a,b){ return a.date < b.date ? 1 : -1; });
+    renderProduction(); toast("Production day logged.");
+  });
+}
+
+/* ============ boot ============ */
+buildControls();
+initMap();
+startGPS();
+renderAllWp(); renderRuns(); renderTracks(); renderProduction();
+loadWeather(HAMLIN.lat, HAMLIN.lng, "Hamlin, NY");
+setTimeout(function(){ if(state.pos) loadWeather(state.pos.lat, state.pos.lng, "Your location"); }, 6000);
+})();
+</script>
+</body>
+</html>
