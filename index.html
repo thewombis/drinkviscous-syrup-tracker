@@ -180,6 +180,23 @@
   .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(80px);background:#2b1c07;border:1px solid var(--gold2);
     color:var(--text);padding:11px 18px;border-radius:11px;font-size:14px;font-weight:600;z-index:9999;transition:.25s;max-width:92vw;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.7)}
   .toast.show{transform:translateX(-50%) translateY(0)}
+
+  /* your sugar bush location */
+  .loc-card{border-color:var(--line2)}
+  .loc-help{font-size:14px;color:var(--text-dim);line-height:1.55;margin:0 0 12px;max-width:820px}
+  .loc-help b{color:var(--text)}
+  .loc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:640px){.loc-grid{grid-template-columns:1fr}}
+  .loc-grid .full{grid-column:1/-1}
+  .loc-current{font-size:13.5px;color:var(--amber);margin:12px 0 0;line-height:1.5}
+  .loc-note{font-size:12.5px;color:var(--muted);margin:6px 0 0;line-height:1.55}
+
+  /* woods name bar on the map + name suffixes in log headings */
+  .woods-bar{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:baseline;padding:10px 14px;background:#000;border-bottom:1px solid var(--line)}
+  .woods-bar .wb-label{font-size:11.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .woods-bar .wb-name{font-family:"DM Serif Display",serif;font-size:19px;color:var(--gold)}
+  .woods-bar .wb-place{font-size:13px;color:var(--text-dim)}
+  .wn-suffix{color:var(--text)}
 </style>
 </head>
 <body>
@@ -195,13 +212,31 @@
   <div class="title-row">
     <div>
       <h1>Deez's Super Mega Syrup Tracker</h1>
-      <p class="subtitle">Sugar bush command center for the 250-tree operation in Hamlin, NY — GPS tracks, tubing line runs, equipment waypoints, production and sap flow, all in one place.</p>
+      <p class="subtitle">Sugar bush command center for any maple operation, anywhere — GPS tracks, tubing line runs, equipment waypoints, production and sap flow, all in one place. Set your own bush location below and the map, weather and sap-flow forecast follow you.</p>
     </div>
     <div class="gps-pill"><span class="gps-dot" id="gpsDot"></span><span id="gpsText">GPS: waiting for a fix…</span></div>
   </div>
 </header>
 
 <main>
+  <!-- YOUR SUGAR BUSH LOCATION -->
+  <section class="card loc-card">
+    <h2>Your Sugar Bush Location</h2>
+    <p class="loc-help">This tracker isn't just for Hamlin — it's for <b>anyone with a sugar bush</b>. Type your own address, town, or ZIP and hit <b>Find my address</b>: the map will fly there, and your local weather, forecast and sap-flow rating will switch to your woods. No GPS required. <b>Name your woods</b> and that name rides along everywhere — on the map, the weather heading, and your production and tubing logs.</p>
+    <div class="loc-grid">
+      <label class="f">Name your woods (optional)<input id="locName" placeholder="e.g. Deez's Sugar Bush, Miller Family Sugar Bush…" autocomplete="off" /></label>
+      <label class="f">Approx. total taps on your bush (optional)<input id="locTaps" type="number" min="0" step="1" placeholder="e.g. 400 — used for the sap-flow estimate" /></label>
+      <label class="f full">Your address, town &amp; state, or ZIP / postal code<input id="locAddress" placeholder="e.g. 123 Maple Rd, Stowe, VT 05672 — or just “Burlington, VT” or “14464”" autocomplete="street-address" /></label>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn gold" id="locFindBtn">Find my address &amp; go there</button>
+      <button type="button" class="btn" id="locGpsBtn">Use my GPS spot instead</button>
+      <button type="button" class="btn" id="locApplyBtn">Save woods name &amp; tap count</button>
+    </div>
+    <p class="loc-current" id="locCurrent">Currently showing: Hamlin, NY — the starting example. Set your own location above and everything below follows it.</p>
+    <p class="loc-note">GPS permission denied on your phone? Address lookup works without GPS, so you can still center the map on your bush and get your weather. You can also tap the map to drop coordinates into the waypoint form by hand. Your location, waypoints and logs stay in this session on this device — set your address again when you reopen the page.</p>
+  </section>
+
   <!-- WEATHER + SAP FLOW -->
   <section class="wx-grid">
     <div class="card">
@@ -245,9 +280,10 @@
       <button class="btn" id="locateBtn">Center on me</button>
       <span class="map-status" id="mapStatus">Loading aerial tiles…</span>
     </div>
+    <div class="woods-bar"><span class="wb-label">Woods</span><span class="wb-name" id="mapWoodsName">Your woods</span><span class="wb-place" id="mapWoodsPlace">— name them under Your Sugar Bush Location above · Hamlin, NY</span></div>
     <div id="map"></div>
     <div class="map-toolbar" style="border-top:1px solid var(--line);border-bottom:0">
-      <span style="font-size:12.5px;color:var(--muted)">Imagery: Esri World Imagery / Esri street &amp; dark canvas tiles, with automatic fallback sources and per-tile retry. Property lines: NY State tax parcel service (best effort).</span>
+      <span style="font-size:12.5px;color:var(--muted)">Imagery: Esri World Imagery / Esri street &amp; dark canvas tiles, with automatic fallback sources and per-tile retry. Property lines: NY State tax parcel service — it covers New York; for a bush in another state it may return no lines for your view.</span>
     </div>
   </section>
 
@@ -330,7 +366,7 @@
     <!-- PRODUCTION + RUNS -->
     <div style="display:flex;flex-direction:column;gap:18px">
       <section class="card">
-        <h2>Production Log</h2>
+        <h2>Production Log<span class="wn-suffix"></span></h2>
         <form id="prodForm">
           <div class="grid">
             <label class="f">Date<input id="pDate" type="date" required /></label>
@@ -356,9 +392,9 @@
       </section>
 
       <section class="card">
-        <h2>Line Runs (tubing)</h2>
+        <h2>Line Runs (tubing)<span class="wn-suffix"></span></h2>
         <div id="runList"><div class="empty">No line runs drawn yet. Hit <b>Draw Line Run</b>, then tap waypoints in order to lay out a mainline or lateral exactly as it runs.</div></div>
-        <h2 style="margin-top:20px">GPS Tracks</h2>
+        <h2 style="margin-top:20px">GPS Tracks<span class="wn-suffix"></span></h2>
         <div id="trackList"><div class="empty">No tracks recorded yet. Start a GPS track and walk the bush — your path, heading and distance save here with the color you picked.</div></div>
       </section>
     </div>
@@ -366,8 +402,7 @@
 </main>
 
 <footer>
-  Deez's Super Mega Syrup Tracker · Hamlin, NY · Data lives in this session on this device — log your day before closing the tab.
-  Planned home on the web: <b style="color:var(--text-dim)">drinkviscous.com</b> — deployment to that domain is a separate step after this build (GitHub → Vercel → GoDaddy DNS), and GoDaddy may require a verification code sent by text to finish the DNS change.
+  Deez's Super Mega Syrup Tracker · <span id="footerPlace">Hamlin, NY</span> · Built for any sugar bush — set your own address in “Your Sugar Bush Location” above. Data lives in this session on this device — log your day before closing the tab.
 </footer>
 
 <div class="toast" id="toast"></div>
@@ -379,6 +414,7 @@
 /* ============ state (in-memory session) ============ */
 var HAMLIN = {lat:43.3231, lng:-77.9213};
 var state = {
+  home:{lat:HAMLIN.lat, lng:HAMLIN.lng, label:"Hamlin, NY"}, homeCustom:false, bushName:"", estTaps:0,
   pos:null, heading:null,
   waypoints:[], runs:[], tracks:[], production:[],
   editingId:null, runMode:false, runPicks:[], selectedId:null,
@@ -462,7 +498,7 @@ function initMap(){
     $("map").innerHTML = '<div style="padding:28px;color:var(--text-dim);font-size:14.5px;line-height:1.6">The map engine didn\'t load (network hiccup). Your waypoints, production log and weather tools below are unaffected.<br><br><button class="btn gold" onclick="location.reload()">Reload page</button></div>';
     return;
   }
-  var start = HAMLIN;
+  var start = state.home;
   map = L.map("map",{zoomControl:true}).setView([start.lat,start.lng], 15);
   buildLayers();
   var saved = null; try{ saved = localStorage.getItem("syrupLayer"); }catch(e){}
@@ -501,7 +537,7 @@ function loadParcels(){
   .then(function(gj){
     parcelBusy=false;
     if(parcelLayer) map.removeLayer(parcelLayer);
-    if(!gj.features || !gj.features.length){ toast("No parcel lines returned for this view."); return; }
+    if(!gj.features || !gj.features.length){ toast("No parcel lines returned for this view — the parcel service covers New York, so a bush in another state may show none."); return; }
     parcelLayer = L.geoJSON(gj,{style:{color:"#ffd873",weight:1.4,fillOpacity:0.04}}).addTo(map);
     toast(gj.features.length+" property parcels drawn.");
   }).catch(function(){ parcelBusy=false; toast("Property line service didn't answer — aerial still works; try again in a bit."); });
@@ -528,7 +564,7 @@ function startGPS(){
     }
   }, function(err){
     $("gpsDot").className="gps-dot err";
-    $("gpsText").textContent = "GPS: "+(err.code===1?"permission denied — allow location to mark trees":"signal unavailable");
+    $("gpsText").textContent = "GPS: "+(err.code===1?"permission denied — allow location in your browser/phone settings to mark trees, or use your address in Your Sugar Bush Location above (no GPS needed)":"signal unavailable — or use your address above");
   }, {enableHighAccuracy:true, maximumAge:4000, timeout:15000});
 }
 
@@ -763,11 +799,11 @@ function wxCodeText(c){
   if(c>=95) return "Thunderstorm"; return "—";
 }
 function loadWeather(lat, lng, place){
-  $("wxPlace").textContent = place || "Hamlin, NY";
+  $("wxPlace").textContent = place || state.home.label || "Your location";
   var url = "https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lng+
     "&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,surface_pressure,wind_speed_10m"+
     "&hourly=surface_pressure&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"+
-    "&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FNew_York&forecast_days=5";
+    "&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=5";
   fetch(url).then(function(r){ if(!r.ok) throw new Error("wx "+r.status); return r.json(); })
   .then(function(d){ state.lastWx = d; renderWeather(d); computeSapFlow(d); })
   .catch(function(){ $("wxBody").innerHTML = '<p class="wx-status err">Weather service didn\'t answer — check connection and reopen. Sap flow needs the forecast, so it\'s paused too.</p>'; });
@@ -820,8 +856,10 @@ function computeSapFlow(d){
   else if(score >= 30){ rating="AVERAGE"; cls="average"; galPerTap=0.35; }
   else { rating="BAD"; cls="bad"; galPerTap=0.08; }
   var taps = state.waypoints.reduce(function(s,w){return s+(parseFloat(w.taps)||0);},0);
-  var estGal = taps ? Math.round(galPerTap*taps) : Math.round(galPerTap*250);
-  var basis = taps ? taps+" taps on your pins" : "your 250-tree bush (est.)";
+  var estGal, basis;
+  if(taps){ estGal = Math.round(galPerTap*taps); basis = taps+" taps on your pins"; }
+  else if(state.estTaps){ estGal = Math.round(galPerTap*state.estTaps); basis = state.estTaps+" taps on your bush (your estimate)"; }
+  else { estGal = Math.round(galPerTap*100); basis = "100 taps — add your bush's total taps under Your Sugar Bush Location for a bush-wide estimate"; }
   $("flowRating").textContent = rating+" FLOW";
   $("flowRating").className = "flow-rating "+cls;
   var pct = Math.round(score);
@@ -832,6 +870,76 @@ function computeSapFlow(d){
   $("bucketCap").innerHTML = "~"+estGal+" gal expected<br/>today";
   $("flowFacts").innerHTML = "Predicted <b>~"+galPerTap.toFixed(2)+" gal per tap</b> · ~<b>"+estGal+" gal</b> across "+basis+".<br>Tomorrow leans "+(dayScore(tmax1,tmin1) >= 50 ? "<b>strong</b>" : dayScore(tmax1,tmin1) >= 30 ? "<b>fair</b>" : "<b>weak</b>")+" ("+Math.round(tmax1)+"° / "+Math.round(tmin1)+"°).";
   $("flowWhy").textContent = "Why: last night "+Math.round(tmin)+"°F ("+(tmin<=32?"froze ✓":"no freeze ✗")+"), today "+Math.round(tmax)+"°F ("+(tmax>=38&&tmax<=55?"prime thaw ✓":tmax<38?"barely thaws":"warm")+")"+", pressure "+(trend<=-0.5?"falling "+Math.abs(trend).toFixed(1)+" hPa — helps flow":trend>=0.5?"rising "+trend.toFixed(1)+" hPa — works against flow":"steady")+". Score "+pct+"/100 from the freeze–thaw swing and 12-hour pressure trend.";
+}
+
+/* ============ your sugar bush location (any address, not just Hamlin) ============ */
+function readBushFields(){
+  state.bushName = $("locName").value.trim();
+  var t = parseInt($("locTaps").value, 10);
+  state.estTaps = (!isNaN(t) && t > 0) ? t : 0;
+  if(state.lastWx) computeSapFlow(state.lastWx);
+  return state.bushName;
+}
+function displayLabel(label){
+  return state.bushName ? state.bushName+" — "+label : label;
+}
+function applyWoodsName(){
+  var name = state.bushName || "";
+  var place = state.home.label;
+  var shown = name ? name+" — "+place : place;
+  $("wxPlace").textContent = shown;
+  $("footerPlace").textContent = shown;
+  $("mapWoodsName").textContent = name || "Your woods";
+  $("mapWoodsPlace").textContent = name ? "· "+place : "— name them under Your Sugar Bush Location above · "+place;
+  document.querySelectorAll(".wn-suffix").forEach(function(el){ el.textContent = name ? " — "+name : ""; });
+}
+function setHome(lat, lng, label){
+  readBushFields();
+  state.home = {lat:lat, lng:lng, label:label};
+  state.homeCustom = true;
+  var shown = displayLabel(label);
+  $("wxPlace").textContent = shown;
+  $("footerPlace").textContent = shown;
+  $("locCurrent").textContent = "Currently showing: "+shown+" · "+lat.toFixed(5)+", "+lng.toFixed(5)+" — map, local weather, forecast and sap-flow rating below are now for your bush.";
+  if(map) map.flyTo([lat,lng], Math.max(map.getZoom(), 15));
+  applyWoodsName();
+  loadWeather(lat, lng, shown);
+  toast("Location set: "+shown);
+}
+function shortPlaceLabel(cand, fallback){
+  try{
+    var a = cand.attributes || {};
+    if(a.City && a.Region) return a.City+", "+a.Region;
+    if(a.City) return a.City;
+  }catch(e){}
+  var parts = String(cand.address || fallback || "").split(",").map(function(s){return s.trim();}).filter(Boolean);
+  return parts.slice(0,2).join(", ") || fallback;
+}
+function findAddress(){
+  var q = $("locAddress").value.trim();
+  if(!q){ toast("Type your address, town & state, or ZIP first — then hit Find my address."); $("locAddress").focus(); return; }
+  var btn = $("locFindBtn"); btn.disabled = true;
+  $("locCurrent").textContent = "Looking up “"+q+"”…";
+  /* Esri World Geocoding — same provider as this tracker's map tiles */
+  fetch("https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&maxLocations=1&outFields=City,Region,Postal,Country&singleLine="+encodeURIComponent(q))
+  .then(function(r){ if(!r.ok) throw new Error("lookup "+r.status); return r.json(); })
+  .then(function(data){
+    btn.disabled = false;
+    var rows = (data && data.candidates) || [];
+    if(!rows.length){
+      $("locCurrent").textContent = "No match found for “"+q+"”. Try adding the town and state, or use just the ZIP / postal code.";
+      toast("Address not found — try town, state, or ZIP.");
+      return;
+    }
+    var lat = parseFloat(rows[0].location.y), lng = parseFloat(rows[0].location.x);
+    if(isNaN(lat) || isNaN(lng)) throw new Error("bad coordinates");
+    setHome(lat, lng, shortPlaceLabel(rows[0], q));
+  })
+  .catch(function(){
+    btn.disabled = false;
+    $("locCurrent").textContent = "The address lookup didn't answer — check your connection and try again, or use your GPS spot / tap the map instead.";
+    toast("Address lookup failed — try again in a moment.");
+  });
 }
 
 /* ============ wiring ============ */
@@ -856,6 +964,20 @@ function buildControls(){
   $("retryTiles").onclick = function(){ if(typeof L === "undefined"){ location.reload(); return; } if(!map){ initMap(); renderAllWp(); redrawDrawLayer(); return; } var cur = activeLayer; buildLayers(); setLayer(cur); toast("Tiles reloaded from primary source."); };
   $("locateBtn").onclick = function(){ if(state.pos && map) map.flyTo([state.pos.lat,state.pos.lng], 17); else toast("No GPS fix yet."); };
   $("parcelToggle").onclick = toggleParcels;
+  $("locFindBtn").onclick = findAddress;
+  $("locAddress").addEventListener("keydown", function(e){ if(e.key === "Enter"){ e.preventDefault(); findAddress(); } });
+  $("locGpsBtn").onclick = function(){
+    if(state.pos){ setHome(state.pos.lat, state.pos.lng, "Your GPS location"); }
+    else toast("No GPS fix yet — if permission is denied on your phone, use the address lookup above instead; it needs no GPS.");
+  };
+  $("locApplyBtn").onclick = function(){
+    var name = readBushFields();
+    var shown = displayLabel(state.home.label);
+    applyWoodsName();
+    $("locCurrent").textContent = "Currently showing: "+shown+" · "+state.home.lat.toFixed(5)+", "+state.home.lng.toFixed(5)+(state.estTaps ? " · Sap-flow estimates use your "+state.estTaps+" taps." : "");
+    toast(name ? "Your woods are now “"+name+"” — it's on the map, weather and logs." : "Name & tap count saved for this session.");
+  };
+  $("locName").addEventListener("input", function(){ readBushFields(); applyWoodsName(); });
   $("markTreeBtn").onclick = function(){ quickMark("tree"); };
   $("trackBtn").onclick = toggleTrack;
   $("drawRunBtn").onclick = function(){ toggleRunMode(!state.runMode); };
@@ -904,8 +1026,8 @@ buildControls();
 initMap();
 startGPS();
 renderAllWp(); renderRuns(); renderTracks(); renderProduction();
-loadWeather(HAMLIN.lat, HAMLIN.lng, "Hamlin, NY");
-setTimeout(function(){ if(state.pos) loadWeather(state.pos.lat, state.pos.lng, "Your location"); }, 6000);
+loadWeather(state.home.lat, state.home.lng, state.home.label);
+setTimeout(function(){ if(state.pos && !state.homeCustom) loadWeather(state.pos.lat, state.pos.lng, "Your GPS location"); }, 6000);
 })();
 </script>
 </body>
